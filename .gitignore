@@ -1,0 +1,13 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+admin.sql
+setup-result.json
+wrangler.local.jsonc
+wrangler.jsonc
+*.log
+*.png
+.edge-*/

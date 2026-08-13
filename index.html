@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>CloudMail 临时邮箱</title>
+  <link rel="stylesheet" href="/styles.css?v=20260813-6">
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-mail" viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 7l9 7 9-7"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M16 3.5a4 4 0 0 1 0 7.5M18 14a6 6 0 0 1 4 5.7V21"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M10 5H4v14h6M14 8l4 4-4 4M8 12h10"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2z"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7.4A5.8 5.8 0 0 0 19.3 3 5.4 5.4 0 0 0 19.1 0S17.9-.4 15 1.6a13.4 13.4 0 0 0-6 0C6.1-.4 4.9 0 4.9 0a5.4 5.4 0 0 0-.2 3A5.8 5.8 0 0 0 3.2 7.1c0 5.8 3.5 7 6.8 7.4A4.8 4.8 0 0 0 9 18v4M9 19c-3 .9-3-1.5-4.2-2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5"/><path d="M16 16l5 5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0 1 11.3-2.1L20 9M4 15l2.6 3.1A7 7 0 0 0 17.9 16"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><circle cx="16" cy="8" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6zM9 12l2 2 4-5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  </svg>
+
+  <section class="auth-screen" id="authScreen">
+    <form class="auth-card" id="loginForm">
+      <div class="auth-brand"><svg><use href="#i-mail"/></svg><strong>CloudMail</strong></div>
+      <h1>登录邮箱工作台</h1>
+      <p>使用管理员或已授权的普通用户账号登录</p>
+      <label>账号<input id="loginUser" autocomplete="username" placeholder="请输入账号" required></label>
+      <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" required></label>
+      <div class="login-error" id="loginError"></div>
+      <button class="button primary wide" type="submit">登录</button>
+      <small>请使用部署时创建的管理员账号登录</small>
+    </form>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <header class="app-header">
+      <a class="brand" href="/" data-route="/"><svg><use href="#i-mail"/></svg><strong>CloudMail</strong></a>
+      <span class="identity-badge" id="identityBadge">普通用户</span>
+      <nav class="app-nav" aria-label="主导航">
+        <a class="nav-button" href="https://github.com" target="_blank" rel="noreferrer"><svg><use href="#i-github"/></svg><span>GitHub</span></a>
+        <a class="nav-button admin-only" href="/users" data-route="/users"><svg><use href="#i-users"/></svg><span>用户管理</span></a>
+        <a class="nav-button admin-only" href="/mailboxes" data-route="/mailboxes"><svg><use href="#i-box"/></svg><span>所有邮箱</span></a>
+        <button class="nav-button" data-action="logout"><svg><use href="#i-out"/></svg><span>退出登录</span></button>
+        <button class="nav-button icon-only" id="themeBtn" data-action="theme" title="切换深色模式"><svg><use href="#i-moon"/></svg></button>
+      </nav>
+      <button class="mobile-menu" data-action="mobile-nav" aria-label="打开导航"><svg><use href="#i-menu"/></svg></button>
+    </header>
+    <main id="appView"></main>
+  </div>
+
+  <div class="overlay" id="overlay" data-action="close-layer"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true"></aside>
+  <dialog class="dialog" id="dialog"></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js?v=20260813-6"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudmail-temp-mail",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    { "type": "Text", "globs": ["**/*.html", "**/*.css", "**/app.js"], "fallthrough": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "TEMP_MAIL_DB",
+      "database_name": "REPLACE_WITH_YOUR_D1_DATABASE_NAME",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "MAIL_EML", "bucket_name": "REPLACE_WITH_YOUR_R2_BUCKET_NAME" }
+  ],
+  "vars": {
+    "APP_ENV": "production",
+    "MAIL_DOMAIN": "example.com",
+    "SUPER_ADMIN_USERNAME": "admin",
+    "MAX_EMAIL_BYTES": "5242880",
+    "MESSAGE_TTL_HOURS": "168"
+  },
+  "observability": { "enabled": true }
+}
