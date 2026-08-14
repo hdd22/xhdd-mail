@@ -51,8 +51,11 @@ function displayEmailBody(value) {
     const bytes = encoded.slice(1).split("=").map((hex) => Number.parseInt(hex, 16));
     return new TextDecoder().decode(new Uint8Array(bytes));
   });
-  if (/<[a-z][\s\S]*>/i.test(text)) text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n").replace(/<[^>]+>/g, "");
-  return text.replace(/&nbsp;/gi, " ").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&").replace(/\n{3,}/g, "\n\n").trim();
+  // Outlook-compatible templates wrap visible content in conditional comments.
+  // Removing them before stripping tags keeps an isolated code on its own line.
+  text = text.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, "\n").replace(/<!--[\s\S]*?-->/g, "\n");
+  if (/<[a-z][\s\S]*>/i.test(text)) text = text.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|tr|td|table|section|article|h[1-6])>/gi, "\n").replace(/<[^>]+>/g, "");
+  return text.replace(/&nbsp;|&#160;|&#xA0;/gi, " ").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, "&").replace(/\r/g, "").replace(/\n[\t ]+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function displaySubject(value) {
   const input = String(value || "(无主题)").replace(/(=\?[^?]+\?[bq]\?[^?]+\?=)\s+(?==\?)/gi, "$1");
@@ -75,49 +78,83 @@ function displaySubject(value) {
   });
 }
 function recognizeVerificationCode(message) {
-  const body = displayEmailBody(message?.text_body || "").slice(0, 20000);
+  // Normalize the complete stored body first: template markup can make a
+  // visually short email very long before it is converted to plain text.
+  const body = displayEmailBody(message?.text_body || "").slice(0, 100000);
   if (!body) return null;
 
-  // URLs and their query parameters are never treated as verification-code sources.
-  const text = body.replace(/(?:https?:\/\/|www\.)[^\s<>"']+/gi, (url) => " ".repeat(url.length));
-  const keywordPattern = /验证码|校验码|动态码|一次性(?:密码|代码)|登录码|代码(?:是|为|如下)|otp|verification\s*code|security\s*code|one[-\s]?time\s*(?:password|code)|passcode|launch\s*code|code\s*(?:is|below|shown\s+below)|enter(?:ing)?\s+(?:the\s+)?code(?:\s+below)?/gi;
+  const text = body.normalize("NFKC")
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+    .replace(/(?:https?:\/\/|www\.)[^\s<>"']+/gi, " [链接] ")
+    .replace(/[\t\f\v\u00a0 ]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
+  const keywordPattern = /验证码|校验码|动态码|认证码|确认码|安全码|登录码|登录验证|临时(?:的)?(?:验证码|代码)|一次性(?:密码|代码)|代码(?:是|为|如下)|otp|verification\s*(?:code|number)|security\s*code|authentication\s*code|confirmation\s*code|temporary\s*(?:verification\s*)?code|one[-\s]?time\s*(?:password|code)|passcode|launch\s*code|code\s*(?:is|below|shown\s+below)|enter(?:ing)?\s+(?:the\s+)?code(?:\s+below)?/gi;
   const keywords = [];
   let keywordMatch;
   while ((keywordMatch = keywordPattern.exec(text))) keywords.push({ start: keywordMatch.index, end: keywordPattern.lastIndex });
-  if (!keywords.length) return null;
+  const subjectSuggestsCode = /验证码|校验码|动态码|认证码|确认码|登录验证|临时验证|otp|verification|confirmation\s*code|security\s*code|passcode|launch\s*code/i.test(displaySubject(message?.subject || ""));
+  if (!keywords.length && !subjectSuggestsCode) return null;
 
   const negativeLabel = /(?:订单号?|流水号?|参考号?|编号|手机号|电话号码|日期|时间|快递单号|物流单号|order(?:\s*(?:number|no\.?))?|phone|date|time|tracking(?:\s*(?:number|no\.?)?)?|transaction(?:\s*id)?|reference(?:\s*id)?|ref|id)\s*[:：#=-]?\s*$/i;
-  const candidatePattern = /[A-Z0-9]{4,8}/gi;
+  const candidatePattern = /[A-Z0-9]{2,4}(?:[-‐‑‒–—][A-Z0-9]{2,4}){1,2}|(?:[A-Z0-9][ \t·•]){3,7}[A-Z0-9]|[A-Z0-9]{4,8}/gi;
   let best = null;
+  const eligibleCandidates = [];
+  const seen = new Set();
   let candidateMatch;
   while ((candidateMatch = candidatePattern.exec(text))) {
-    const value = candidateMatch[0].toUpperCase();
+    const rawValue = candidateMatch[0];
+    const compactValue = rawValue.replace(/[ \t·•\-‐‑‒–—]/g, "").toUpperCase();
+    const hasDash = /[-‐‑‒–—]/.test(rawValue);
+    const value = hasDash && /[A-Z]/i.test(compactValue)
+      ? rawValue.replace(/[‐‑‒–—]/g, "-").replace(/[ \t]/g, "").toUpperCase()
+      : compactValue;
+    if (seen.has(`${candidateMatch.index}:${compactValue}`)) continue;
+    seen.add(`${candidateMatch.index}:${compactValue}`);
+    if (compactValue.length < 4 || compactValue.length > 8) continue;
     const start = candidateMatch.index;
-    const end = start + value.length;
-    if (!/\d/.test(value) || /[A-Z0-9]/i.test(text[start - 1] || "") || /[A-Z0-9]/i.test(text[end] || "")) continue;
-    if (/^(?:19|20)\d{6}$/.test(value)) continue;
+    const end = start + rawValue.length;
+    if (!/\d/.test(compactValue) || /[A-Z0-9]/i.test(text[start - 1] || "") || /[A-Z0-9]/i.test(text[end] || "")) continue;
+    if (/^(?:19|20)\d{6}$/.test(compactValue)) continue;
 
     const around = text.slice(Math.max(0, start - 12), Math.min(text.length, end + 12));
     const dateTimeParts = around.match(/\d{1,4}[-/.年]\d{1,2}(?:[-/.月]\d{1,2})?|\d{1,2}:\d{2}(?::\d{2})?/g) || [];
-    if (dateTimeParts.some((part) => part.replace(/\D/g, "").includes(value))) continue;
+    if (dateTimeParts.some((part) => part.replace(/\D/g, "").includes(compactValue))) continue;
 
-    const before = text.slice(Math.max(0, start - 30), start);
+    const before = text.slice(Math.max(0, start - 40), start);
     if (negativeLabel.test(before)) continue;
+    eligibleCandidates.push(value);
 
     let score = 0;
+    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+    const nextLine = text.indexOf("\n", end);
+    const lineEnd = nextLine < 0 ? text.length : nextLine;
+    const line = text.slice(lineStart, lineEnd).trim();
+    const isolated = line.replace(/[ \t·•\-‐‑‒–—]/g, "").toUpperCase() === compactValue;
+    if (isolated) score += compactValue.length === 6 ? 38 : 28;
+    if (/^\d{6}$/.test(compactValue)) score += 12;
+    else if (/^\d{4,8}$/.test(compactValue)) score += 7;
+    else if (/^[A-Z0-9]{4,8}$/.test(compactValue)) score += 12;
+    if (subjectSuggestsCode && isolated) score += 34;
     for (const keyword of keywords) {
       if (start >= keyword.end) {
         const distance = start - keyword.end;
-        if (distance <= 48) {
-          const connectorBonus = /^(?:\s|[:：,，#=-])*(?:是|为|is|equals)?(?:\s|[:：,，#=-])*$/i.test(text.slice(keyword.end, start)) ? 4 : 0;
-          score = Math.max(score, 112 - distance + connectorBonus);
+        if (distance <= 600) {
+          const between = text.slice(keyword.end, start);
+          const connectorBonus = /^(?:\s|[:：,，#=-])*(?:是|为|is|equals|以继续|to\s+continue)?(?:\s|[:：,，#=-])*$/i.test(between) ? 18 : 0;
+          const distanceScore = distance <= 80 ? 105 - Math.floor(distance / 2) : distance <= 250 ? 62 - Math.floor((distance - 80) / 10) : 36 - Math.floor((distance - 250) / 35);
+          score = Math.max(score, distanceScore + connectorBonus + (isolated ? 18 : 0));
         }
       } else if (end <= keyword.start) {
         const distance = keyword.start - end;
-        if (distance <= 20) score = Math.max(score, 82 - distance);
+        if (distance <= 80) score = Math.max(score, 78 - Math.floor(distance / 2) + (isolated ? 12 : 0));
       }
     }
-    if (score >= 72 && (!best || score > best.score)) best = { value, source: "正文识别", score };
+    if (score >= 68 && (!best || score > best.score)) best = { value, source: "正文识别", score };
+  }
+  if (!best && subjectSuggestsCode) {
+    const uniqueSixDigitCodes = [...new Set(eligibleCandidates.filter((value) => /^\d{6}$/.test(value)))];
+    if (uniqueSixDigitCodes.length === 1) return { value: uniqueSixDigitCodes[0], source: "正文识别", score: 68 };
   }
   return best;
 }

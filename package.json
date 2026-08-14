@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute TEMP_MAIL_DB --remote --file=./schema.sql",
     "admin:sql": "node ./scripts/generate-admin.mjs",
-    "privacy:check": "node ./scripts/privacy-check.mjs"
+    "privacy:check": "node ./scripts/privacy-check.mjs",
+    "test:codes": "node ./scripts/test-verification-codes.mjs"
   },
   "devDependencies": {
     "wrangler": "latest"
